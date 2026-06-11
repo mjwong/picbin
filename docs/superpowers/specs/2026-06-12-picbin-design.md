@@ -51,7 +51,7 @@ albums (
   owner_id       uuid → profiles.id,
   title          text NOT NULL,
   description    text,
-  cover_photo_id uuid → photos.id nullable,
+  cover_photo_id uuid → photos.id nullable,  -- set after upload, not at creation
   visibility     enum('public', 'restricted'),
   created_at     timestamptz
 )
@@ -137,7 +137,7 @@ Share link tokens: `crypto.randomUUID()`. Optional expiry. Owner revokes by dele
 | `/[username]` | User profile + album grid |
 | `/[username]/[albumId]` | Album view — photo grid |
 | `/[username]/[albumId]/[photoId]` | Photo detail — EXIF, comments, likes, tags |
-| `/upload` | Upload photos to album (auth required) |
+| `/upload?albumId=<id>` | Upload photos to existing album (auth required) |
 | `/albums/new` | Create album (auth required) |
 | `/albums/[albumId]/settings` | Edit album, manage shares (owner only) |
 | `/settings` | Profile settings |
@@ -173,7 +173,7 @@ DELETE /api/comments/[id]               — comment author or photo owner
 - **Sizes generated:** 800px wide (album grid), 300px wide (preview/thumbnail)
 - **Originals:** stored in private Supabase Storage bucket, served via signed URLs
 - **Thumbnails:** stored in public Supabase Storage bucket, served directly
-- **EXIF:** extracted with `exif-reader` or `sharp` metadata, stored as jsonb. Parse failures are non-fatal — photo saves with `exif_data: null`.
+- **EXIF:** extracted via Sharp's built-in `.metadata()`, stored as jsonb. Parse failures are non-fatal — photo saves with `exif_data: null`.
 
 ---
 
