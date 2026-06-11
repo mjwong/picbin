@@ -101,7 +101,8 @@ begin
       new.raw_user_meta_data->>'name'
     ),
     new.raw_user_meta_data->>'avatar_url'
-  );
+  )
+  on conflict (username) do update set username = excluded.username || '_' || substr(new.id::text, 1, 6);
   return new;
 end;
 $$;
@@ -154,7 +155,13 @@ create policy "photos_select_owner" on public.photos
   for select using (auth.uid() = owner_id);
 create policy "photos_select_shared_album" on public.photos
   for select using (
-    exists (select 1 from public.album_shares where album_id = photos.album_id and user_id = auth.uid())
+    exists (
+      select 1 from public.album_shares
+      join public.albums on albums.id = album_shares.album_id
+      where album_shares.album_id = photos.album_id
+        and album_shares.user_id = auth.uid()
+        and albums.visibility = 'restricted'
+    )
   );
 create policy "photos_insert_auth"  on public.photos
   for insert with check (auth.uid() = owner_id);
@@ -178,17 +185,53 @@ create policy "album_share_links_all_album_owner" on public.album_share_links
   );
 
 -- photo_likes
-create policy "photo_likes_select_all"   on public.photo_likes for select using (true);
+create policy "photo_likes_select_all" on public.photo_likes
+  for select using (
+    exists (
+      select 1 from public.photos
+      join public.albums on albums.id = photos.album_id
+      where photos.id = photo_likes.photo_id
+        and (
+          albums.visibility = 'public'
+          or albums.owner_id = auth.uid()
+          or exists (select 1 from public.album_shares where album_id = albums.id and user_id = auth.uid())
+        )
+    )
+  );
 create policy "photo_likes_insert_auth"  on public.photo_likes for insert with check (auth.uid() = user_id);
 create policy "photo_likes_delete_own"   on public.photo_likes for delete using (auth.uid() = user_id);
 
 -- photo_comments
-create policy "photo_comments_select_all"  on public.photo_comments for select using (true);
+create policy "photo_comments_select_all" on public.photo_comments
+  for select using (
+    exists (
+      select 1 from public.photos
+      join public.albums on albums.id = photos.album_id
+      where photos.id = photo_comments.photo_id
+        and (
+          albums.visibility = 'public'
+          or albums.owner_id = auth.uid()
+          or exists (select 1 from public.album_shares where album_id = albums.id and user_id = auth.uid())
+        )
+    )
+  );
 create policy "photo_comments_insert_auth" on public.photo_comments for insert with check (auth.uid() = user_id);
 create policy "photo_comments_delete_own"  on public.photo_comments for delete using (auth.uid() = user_id);
 
 -- photo_tags
-create policy "photo_tags_select_all"        on public.photo_tags for select using (true);
+create policy "photo_tags_select_all" on public.photo_tags
+  for select using (
+    exists (
+      select 1 from public.photos
+      join public.albums on albums.id = photos.album_id
+      where photos.id = photo_tags.photo_id
+        and (
+          albums.visibility = 'public'
+          or albums.owner_id = auth.uid()
+          or exists (select 1 from public.album_shares where album_id = albums.id and user_id = auth.uid())
+        )
+    )
+  );
 create policy "photo_tags_all_photo_owner"   on public.photo_tags
   for all using (
     exists (select 1 from public.photos where id = photo_tags.photo_id and owner_id = auth.uid())
@@ -206,6 +249,6 @@ create policy "photos_storage_delete" on storage.objects
 create policy "thumbnails_storage_public_read" on storage.objects
   for select using (bucket_id = 'thumbnails');
 create policy "thumbnails_storage_auth_insert" on storage.objects
-  for insert with check (bucket_id = 'thumbnails' and auth.role() = 'authenticated');
+  for insert with check (bucket_id = 'thumbnails' and auth.uid()::text = (storage.foldername(name))[1]);
 create policy "thumbnails_storage_owner_delete" on storage.objects
   for delete using (bucket_id = 'thumbnails' and auth.uid()::text = (storage.foldername(name))[1]);
