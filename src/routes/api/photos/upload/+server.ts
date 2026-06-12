@@ -101,7 +101,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       admin.storage.from('photos').remove([originalPath]),
       admin.storage.from('thumbnails').remove([path800, path300]),
     ]);
-    error(500, dbErr.message);
+    error(500, 'Failed to save photo metadata');
   }
 
   return json(photo, { status: 201 });
