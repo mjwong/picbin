@@ -37,7 +37,7 @@ test('share link grants access to restricted album', async ({ page, browser }) =
   const albumId = new URL(page.url()).searchParams.get('albumId')!;
 
   await page.goto(`/albums/${albumId}/settings`);
-  await page.click('button:has-text("Create Share Link")');
+  await page.click('button:has-text("Create Link")');
 
   const linkInput = page.locator('input[readonly]').first();
   await expect(linkInput).toBeVisible();
