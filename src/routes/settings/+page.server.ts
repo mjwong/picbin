@@ -18,8 +18,8 @@ export const actions: Actions = {
     if (!locals.user) return fail(401, { error: 'Unauthorized' });
 
     const data = await request.formData();
-    const display_name = (data.get('display_name') as string).trim() || null;
-    const bio = (data.get('bio') as string).trim() || null;
+    const display_name = (data.get('display_name') ?? '').toString().trim() || null;
+    const bio = (data.get('bio') ?? '').toString().trim() || null;
 
     const { error } = await locals.supabase
       .from('profiles')
