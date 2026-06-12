@@ -13,6 +13,18 @@
     return `${PUBLIC_SUPABASE_URL}/storage/v1/object/public/thumbnails/${path}`;
   }
 
+  async function downloadOriginal() {
+    if (!d.signedUrl) return;
+    const res = await fetch(d.signedUrl);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = d.photo.title ?? 'photo';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   async function toggleLike() {
     await fetch(`/api/photos/${d.photo.id}/likes`, { method: 'POST' });
     invalidateAll();
@@ -52,6 +64,20 @@
   async function deleteComment(id: string) {
     await fetch(`/api/comments/${id}`, { method: 'DELETE' });
     invalidateAll();
+  }
+
+  async function createShareLink() {
+    await fetch(`/api/photos/${d.photo.id}/share-links`, { method: 'POST' });
+    invalidateAll();
+  }
+
+  async function revokeShareLink(linkId: string) {
+    await fetch(`/api/photos/${d.photo.id}/share-links/${linkId}`, { method: 'DELETE' });
+    invalidateAll();
+  }
+
+  function shareUrl(token: string) {
+    return `${window.location.origin}/p/${token}`;
   }
 </script>
 
@@ -101,9 +127,31 @@
         </div>
 
         {#if d.signedUrl}
-          <a href={d.signedUrl} download class="btn btn-ghost btn-sm download-btn">↓ Download original</a>
+          <button class="btn btn-ghost btn-sm download-btn" onclick={downloadOriginal}>↓ Download original</button>
         {/if}
       </div>
+
+      <!-- Share links (owner only) -->
+      {#if d.isOwner}
+        <div class="sidebar-section">
+          <div class="section-title-row">
+            <h3 class="section-label">Share Links</h3>
+            <button class="btn btn-ghost btn-sm" onclick={createShareLink}>+ Create</button>
+          </div>
+          <p class="share-hint meta">Anyone with a link can view and download this photo.</p>
+
+          {#if d.shareLinks.length}
+            <ul class="share-links-list">
+              {#each d.shareLinks as link}
+                <li class="share-link-item">
+                  <input type="text" value={shareUrl(link.token)} readonly class="link-url" onclick={(e) => (e.target as HTMLInputElement).select()} />
+                  <button class="btn btn-ghost btn-sm" onclick={() => revokeShareLink(link.id)}>Revoke</button>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </div>
+      {/if}
 
       <!-- EXIF -->
       {#if d.photo.exif_data}
@@ -255,4 +303,22 @@
     color: var(--color-on-surface);
   }
   .comment-textarea:focus { border-color: var(--color-primary); }
+
+  .section-title-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.25rem; }
+  .share-hint { margin: 0 0 0.75rem; }
+  .share-links-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+  .share-link-item { display: flex; align-items: center; gap: 0.5rem; }
+  .link-url {
+    flex: 1;
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 0.25rem 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    color: var(--color-on-surface-variant);
+    background: var(--color-surface-muted);
+    outline: none;
+    cursor: text;
+    min-width: 0;
+  }
 </style>

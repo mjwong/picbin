@@ -23,7 +23,7 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 
   if (!photo) error(404, 'Photo not found');
 
-  const [{ data: comments }, { data: likes }, { data: tags }] = await Promise.all([
+  const [{ data: comments }, { data: likes }, { data: tags }, { data: shareLinks }] = await Promise.all([
     adminSupabase
       .from('photo_comments')
       .select('id, body, created_at, profiles!user_id(username, display_name)')
@@ -37,6 +37,13 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
       .from('photo_tags')
       .select('tag')
       .eq('photo_id', params.photoId),
+    locals.user
+      ? locals.supabase
+          .from('photo_share_links')
+          .select('id, token, created_at')
+          .eq('photo_id', params.photoId)
+          .order('created_at', { ascending: false })
+      : Promise.resolve({ data: [] }),
   ]);
 
   // Generate signed URL for original (private bucket)
@@ -54,6 +61,7 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
     likeCount: (likes ?? []).length,
     userLiked,
     tags: (tags ?? []).map((t: any) => t.tag),
+    shareLinks: shareLinks ?? [],
     isOwner,
     token,
   };
