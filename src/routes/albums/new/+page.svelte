@@ -15,12 +15,12 @@
     const res = await fetch('/api/albums', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, description, visibility }),
+      body: JSON.stringify({ title, description: description.trim() || null, visibility }),
     });
 
     if (!res.ok) {
-      const body = await res.json();
-      errorMsg = body.message ?? 'Failed to create album';
+      const body = await res.json().catch(() => ({}));
+      errorMsg = (body as any).message ?? 'Failed to create album';
       submitting = false;
       return;
     }
