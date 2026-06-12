@@ -3,7 +3,7 @@
   import { PUBLIC_SUPABASE_URL } from '$env/static/public';
 
   let { data }: { data: PageData } = $props();
-  const { album, photos, isOwner } = data as any;
+  const { album, photos, isOwner, token } = data as any;
 
   function thumbUrl(path: string) {
     return `${PUBLIC_SUPABASE_URL}/storage/v1/object/public/thumbnails/${path}`;
@@ -23,7 +23,7 @@
 {:else}
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:0.5rem;margin-top:1rem">
     {#each photos as photo}
-      <a href="{photo.id}">
+      <a href="{photo.id}{token ? `?token=${token}` : ''}">
         <img src={thumbUrl(photo.thumb_300_path)} alt={photo.title ?? ''} style="width:100%;height:200px;object-fit:cover" />
       </a>
     {/each}
