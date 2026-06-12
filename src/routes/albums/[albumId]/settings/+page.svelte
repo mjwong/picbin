@@ -3,7 +3,7 @@
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
-  const d = data as any;
+  let d = $derived(data as any);
 
   let title = $state(d.album.title);
   let description = $state(d.album.description ?? '');

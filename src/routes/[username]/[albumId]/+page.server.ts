@@ -1,5 +1,6 @@
 import { error } from '@sveltejs/kit';
 import { canViewAlbum } from '$lib/server/access';
+import { adminSupabase } from '$lib/server/admin';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, url, locals }) => {
@@ -12,7 +13,8 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
   );
   if (!allowed) error(403, 'Access denied');
 
-  const { data: album } = await locals.supabase
+  // Use admin client: canViewAlbum already verified access; RLS blocks anon on restricted albums.
+  const { data: album } = await adminSupabase
     .from('albums')
     .select('id, title, description, visibility, owner_id, profiles!owner_id(username, display_name)')
     .eq('id', params.albumId)
@@ -20,7 +22,7 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 
   if (!album) error(404, 'Album not found');
 
-  const { data: photos } = await locals.supabase
+  const { data: photos } = await adminSupabase
     .from('photos')
     .select('id, title, thumb_300_path, created_at')
     .eq('album_id', params.albumId)

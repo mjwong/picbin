@@ -23,7 +23,7 @@
 {:else}
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:0.5rem;margin-top:1rem">
     {#each photos as photo}
-      <a href="{photo.id}{token ? `?token=${token}` : ''}">
+      <a href="/{album.profiles.username}/{album.id}/{photo.id}{token ? `?token=${token}` : ''}">
         <img src={thumbUrl(photo.thumb_300_path)} alt={photo.title ?? ''} style="width:100%;height:200px;object-fit:cover" />
       </a>
     {/each}

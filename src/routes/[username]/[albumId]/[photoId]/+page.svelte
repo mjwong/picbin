@@ -4,7 +4,7 @@
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
-  const d = data as any;
+  let d = $derived(data as any);
 
   let newComment = $state('');
   let newTag = $state('');
