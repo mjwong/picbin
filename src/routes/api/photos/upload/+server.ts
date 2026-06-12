@@ -60,12 +60,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
   const photoId = crypto.randomUUID();
   const uid = locals.user.id;
 
-  const originalPath = `${uid}/${photoId}/original.jpg`;
+  const ext = file.type === 'image/png' ? 'png' : file.type === 'image/gif' ? 'gif' : file.type === 'image/webp' ? 'webp' : 'jpg';
+  const originalPath = `${uid}/${photoId}/original.${ext}`;
   const path800 = `${uid}/${photoId}/800.jpg`;
   const path300 = `${uid}/${photoId}/300.jpg`;
 
   const [u1, u2, u3] = await Promise.all([
-    admin.storage.from('photos').upload(originalPath, buffer, { contentType: 'image/jpeg' }),
+    admin.storage.from('photos').upload(originalPath, buffer, { contentType: file.type }),
     admin.storage.from('thumbnails').upload(path800, processed.thumb800, { contentType: 'image/jpeg' }),
     admin.storage.from('thumbnails').upload(path300, processed.thumb300, { contentType: 'image/jpeg' }),
   ]);
