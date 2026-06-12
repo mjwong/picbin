@@ -25,8 +25,9 @@
 
   async function deleteAlbum() {
     if (!confirm('Delete this album and all photos? This cannot be undone.')) return;
-    await fetch(`/api/albums/${d.album.id}`, { method: 'DELETE' });
-    goto(`/${d.album.profiles.username}`);
+    const res = await fetch(`/api/albums/${d.album.id}`, { method: 'DELETE' });
+    if (res.ok) goto(`/${d.album.profiles.username}`);
+    else errorMsg = 'Delete failed';
   }
 
   async function grantUser() {
