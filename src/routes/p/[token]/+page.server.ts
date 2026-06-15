@@ -13,7 +13,7 @@ export const load: PageServerLoad = async ({ params }) => {
 
   const { data: photo } = await adminSupabase
     .from('photos')
-    .select('*, profiles!owner_id(username, display_name), albums(title, id)')
+    .select('*, profiles!owner_id(username, display_name), albums!photos_album_id_fkey(title, id)')
     .eq('id', link.photo_id)
     .single();
 

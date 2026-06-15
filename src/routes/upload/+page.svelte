@@ -3,20 +3,53 @@
 
   let { data }: { data: PageData } = $props();
 
-  let files = $state<FileList | null>(null);
+  let files = $state<File[]>([]);
+  let dragging = $state(false);
   let uploading = $state(false);
   let results = $state<{ name: string; ok: boolean; msg: string }[]>([]);
   let done = $state(false);
 
   let album = $derived((data as any).album);
 
+  function addFiles(incoming: FileList | File[]) {
+    const images = Array.from(incoming).filter(f => f.type.startsWith('image/'));
+    files = [...files, ...images];
+  }
+
+  function onFileInput(e: Event) {
+    const input = e.currentTarget as HTMLInputElement;
+    if (input.files) addFiles(input.files);
+    input.value = '';
+  }
+
+  function onDragOver(e: DragEvent) {
+    e.preventDefault();
+    dragging = true;
+  }
+
+  function onDragLeave(e: DragEvent) {
+    if (!(e.currentTarget as Element).contains(e.relatedTarget as Node)) {
+      dragging = false;
+    }
+  }
+
+  function onDrop(e: DragEvent) {
+    e.preventDefault();
+    dragging = false;
+    if (e.dataTransfer?.files) addFiles(e.dataTransfer.files);
+  }
+
+  function removeFile(i: number) {
+    files = files.filter((_, idx) => idx !== i);
+  }
+
   async function upload() {
-    if (!files?.length) return;
+    if (!files.length) return;
     uploading = true;
     results = [];
     done = false;
 
-    for (const file of Array.from(files)) {
+    for (const file of files) {
       const fd = new FormData();
       fd.append('file', file);
       fd.append('albumId', album.id);
@@ -43,24 +76,49 @@
   </div>
 
   <div class="upload-card card">
-    <label class="upload-zone" class:has-files={!!files?.length} class:uploading>
-      <input type="file" accept="image/*" multiple bind:files disabled={uploading} class="file-input" />
-      {#if uploading}
-        <span class="upload-icon">⏳</span>
-        <span class="upload-label">Uploading…</span>
-      {:else if files?.length}
-        <span class="upload-icon">📁</span>
-        <span class="upload-label">{files.length} file{files.length > 1 ? 's' : ''} selected</span>
-        <span class="upload-hint">Click to change selection</span>
-      {:else}
-        <span class="upload-icon">↑</span>
-        <span class="upload-label">Drop photos here or click to browse</span>
-        <span class="upload-hint">JPEG, PNG, WEBP — multiple files supported</span>
-      {/if}
-    </label>
+    <!-- Drop zone -->
+    <div
+      class="upload-zone"
+      class:dragging
+      class:has-files={files.length > 0}
+      class:uploading
+      role="region"
+      aria-label="Drop zone"
+      ondragover={onDragOver}
+      ondragleave={onDragLeave}
+      ondrop={onDrop}
+    >
+      <label class="zone-label">
+        <input type="file" accept="image/*" multiple disabled={uploading} class="file-input" onchange={onFileInput} />
+        {#if uploading}
+          <span class="upload-icon">⏳</span>
+          <span class="upload-label">Uploading…</span>
+        {:else if dragging}
+          <span class="upload-icon">↓</span>
+          <span class="upload-label">Drop to add photos</span>
+        {:else}
+          <span class="upload-icon">↑</span>
+          <span class="upload-label">Drop photos here or <span class="browse-link">click to browse</span></span>
+          <span class="upload-hint">JPEG, PNG, WEBP — drop multiple files</span>
+        {/if}
+      </label>
+    </div>
 
-    {#if files?.length && !uploading && !done}
+    <!-- File list -->
+    {#if files.length > 0 && !uploading}
+      <ul class="file-list">
+        {#each files as file, i}
+          <li class="file-row">
+            <span class="file-icon">🖼</span>
+            <span class="file-name">{file.name}</span>
+            <span class="meta file-size">{(file.size / 1024).toFixed(0)} KB</span>
+            <button class="remove-btn" onclick={() => removeFile(i)} aria-label="Remove">×</button>
+          </li>
+        {/each}
+      </ul>
+
       <div class="upload-footer">
+        <span class="meta">{files.length} photo{files.length > 1 ? 's' : ''} ready</span>
         <button class="btn btn-primary" onclick={upload}>
           Upload {files.length} photo{files.length > 1 ? 's' : ''}
         </button>
@@ -104,21 +162,25 @@
   .upload-card { overflow: visible; }
 
   .upload-zone {
+    border: 2px dashed var(--color-border);
+    border-radius: var(--radius-lg);
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .upload-zone.dragging { border-color: var(--color-primary); background: var(--color-primary-fixed); }
+  .upload-zone.uploading { pointer-events: none; opacity: 0.7; }
+
+  .zone-label {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 0.375rem;
     padding: 3rem 2rem;
-    border: 2px dashed var(--color-border);
-    border-radius: var(--radius-lg);
     cursor: pointer;
-    transition: border-color 0.15s, background 0.15s;
     text-align: center;
     position: relative;
   }
-  .upload-zone:hover, .upload-zone.has-files { border-color: var(--color-primary); background: var(--color-primary-fixed); }
-  .upload-zone.uploading { pointer-events: none; opacity: 0.7; }
+  .zone-label:hover { background: var(--color-surface-container-low); border-radius: var(--radius-lg); }
 
   .file-input {
     position: absolute;
@@ -130,13 +192,48 @@
   }
   .upload-icon { font-size: 2.5rem; line-height: 1; }
   .upload-label { font-family: var(--font-display); font-weight: 600; font-size: 1rem; color: var(--color-on-surface); }
+  .browse-link { color: var(--color-primary); }
   .upload-hint { font-size: 0.8125rem; color: var(--color-outline); }
 
+  .file-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    border-top: 1px solid var(--color-border);
+    max-height: 240px;
+    overflow-y: auto;
+  }
+  .file-row {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--color-border);
+    font-size: 0.875rem;
+  }
+  .file-row:last-child { border-bottom: none; }
+  .file-icon { flex-shrink: 0; }
+  .file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-on-surface); }
+  .file-size { flex-shrink: 0; }
+  .remove-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--color-outline);
+    font-size: 1.125rem;
+    line-height: 1;
+    padding: 0 0.125rem;
+    flex-shrink: 0;
+  }
+  .remove-btn:hover { color: var(--color-error); }
+
   .upload-footer {
-    padding: 1rem 1.25rem;
+    padding: 0.75rem 1rem;
     border-top: 1px solid var(--color-border);
     display: flex;
-    justify-content: flex-end;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
   }
 
   .results-list { margin-top: 1rem; display: flex; flex-direction: column; gap: 0.375rem; }

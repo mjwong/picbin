@@ -10,6 +10,18 @@
     <a href="/" class="wordmark">picbin</a>
     <nav class="nav-links">
       {#if data.user}
+        <a href="/{data.user.user_metadata?.preferred_username}" class="nav-user">
+          {#if (data as any).profile?.avatar_url}
+            <img src={(data as any).profile.avatar_url} alt="avatar" class="nav-avatar" />
+          {:else}
+            <span class="nav-avatar nav-avatar-letter">
+              {((data as any).profile?.display_name ?? data.user.user_metadata?.preferred_username ?? '?').charAt(0).toUpperCase()}
+            </span>
+          {/if}
+          <span class="nav-display-name">
+            {(data as any).profile?.display_name ?? data.user.user_metadata?.preferred_username}
+          </span>
+        </a>
         <a href="/albums/new" class="btn btn-ghost btn-sm">+ New Album</a>
         <a href="/settings" class="nav-link">Settings</a>
         <form method="POST" action="/login?/logout" style="display:contents">
@@ -70,6 +82,43 @@
     cursor: pointer;
     font-family: var(--font-body);
     font-weight: 400;
+  }
+  .nav-user {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.625rem 0.25rem 0.25rem;
+    border-radius: var(--radius-full);
+    text-decoration: none;
+    transition: background 0.15s;
+  }
+  .nav-user:hover { background: var(--color-surface-container-low); }
+  .nav-avatar {
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 50%;
+    object-fit: cover;
+    display: block;
+    flex-shrink: 0;
+  }
+  .nav-avatar-letter {
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+    font-family: var(--font-display);
+    font-size: 0.75rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .nav-display-name {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-on-surface);
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .site-main {
     padding: 2rem 0 4rem;

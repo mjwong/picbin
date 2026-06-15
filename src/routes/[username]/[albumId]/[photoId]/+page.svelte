@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { invalidateAll } from '$app/navigation';
+  import { goto, invalidateAll } from '$app/navigation';
+  import { page } from '$app/stores';
   import { PUBLIC_SUPABASE_URL } from '$env/static/public';
   import type { PageData } from './$types';
 
@@ -8,6 +9,28 @@
 
   let newComment = $state('');
   let newTag = $state('');
+  let rotating = $state(false);
+  let editingDesc = $state(false);
+  let descDraft = $state('');
+
+  function startEditDesc() {
+    descDraft = d.photo.description ?? '';
+    editingDesc = true;
+  }
+
+  async function saveDesc() {
+    await fetch(`/api/photos/${d.photo.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description: descDraft.trim() || null }),
+    });
+    editingDesc = false;
+    invalidateAll();
+  }
+
+  function cancelDesc() {
+    editingDesc = false;
+  }
 
   function thumbUrl(path: string) {
     return `${PUBLIC_SUPABASE_URL}/storage/v1/object/public/thumbnails/${path}`;
@@ -66,9 +89,36 @@
     invalidateAll();
   }
 
+  let shareErr = $state('');
+
   async function createShareLink() {
-    await fetch(`/api/photos/${d.photo.id}/share-links`, { method: 'POST' });
+    shareErr = '';
+    const res = await fetch(`/api/photos/${d.photo.id}/share-links`, { method: 'POST' });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      shareErr = body.message ?? `Error ${res.status}`;
+      return;
+    }
     invalidateAll();
+  }
+
+  async function setCover() {
+    await fetch(`/api/albums/${d.photo.album_id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cover_photo_id: d.photo.id }),
+    });
+  }
+
+  async function rotatePhoto() {
+    rotating = true;
+    const res = await fetch(`/api/photos/${d.photo.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rotate: 90 }),
+    });
+    if (res.ok) await invalidateAll();
+    rotating = false;
   }
 
   async function revokeShareLink(linkId: string) {
@@ -79,14 +129,38 @@
   function shareUrl(token: string) {
     return `${window.location.origin}/p/${token}`;
   }
+
+  function navUrl(id: string) {
+    return `/${$page.params.username}/${$page.params.albumId}/${id}${d.token ? `?token=${d.token}` : ''}`;
+  }
+
+  function onKeydown(e: KeyboardEvent) {
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    if (e.key === 'ArrowLeft' && d.prevId) goto(navUrl(d.prevId));
+    if (e.key === 'ArrowRight' && d.nextId) goto(navUrl(d.nextId));
+  }
 </script>
+
+<svelte:window onkeydown={onKeydown} />
 
 <div class="container">
   <div class="detail-layout">
     <!-- Photo pane -->
     <div class="photo-pane">
-      <div class="photo-frame">
-        <img src={thumbUrl(d.photo.thumb_800_path)} alt={d.photo.title ?? ''} />
+      <div class="photo-nav">
+        {#if d.prevId}
+          <a href="/{$page.params.username}/{$page.params.albumId}/{d.prevId}{d.token ? `?token=${d.token}` : ''}" class="nav-arrow" aria-label="Previous photo">‹</a>
+        {:else}
+          <span class="nav-arrow disabled"></span>
+        {/if}
+        <div class="photo-frame">
+          <img src={thumbUrl(d.photo.thumb_800_path)} alt={d.photo.title ?? ''} />
+        </div>
+        {#if d.nextId}
+          <a href="/{$page.params.username}/{$page.params.albumId}/{d.nextId}{d.token ? `?token=${d.token}` : ''}" class="nav-arrow" aria-label="Next photo">›</a>
+        {:else}
+          <span class="nav-arrow disabled"></span>
+        {/if}
       </div>
 
       <!-- Tags -->
@@ -114,7 +188,31 @@
     <aside class="sidebar">
       <div class="sidebar-section">
         <h2 class="photo-title">{d.photo.title ?? 'Untitled'}</h2>
-        {#if d.photo.description}<p class="photo-desc">{d.photo.description}</p>{/if}
+        {#if d.isOwner}
+          {#if editingDesc}
+            <textarea
+              class="desc-editor"
+              bind:value={descDraft}
+              rows="4"
+              placeholder="Add a description…"
+              autofocus
+            ></textarea>
+            <div class="desc-actions">
+              <button class="btn btn-primary btn-sm" onclick={saveDesc}>Save</button>
+              <button class="btn btn-ghost btn-sm" onclick={cancelDesc}>Cancel</button>
+            </div>
+          {:else}
+            <div class="desc-view" onclick={startEditDesc} title="Click to edit">
+              {#if d.photo.description}
+                <p class="photo-desc">{d.photo.description}</p>
+              {:else}
+                <p class="desc-placeholder">Add a description…</p>
+              {/if}
+            </div>
+          {/if}
+        {:else}
+          {#if d.photo.description}<p class="photo-desc">{d.photo.description}</p>{/if}
+        {/if}
 
         <!-- Like -->
         <div class="like-row">
@@ -129,6 +227,14 @@
         {#if d.signedUrl}
           <button class="btn btn-ghost btn-sm download-btn" onclick={downloadOriginal}>↓ Download original</button>
         {/if}
+        {#if d.isOwner}
+          <button class="btn btn-ghost btn-sm rotate-btn" onclick={rotatePhoto} disabled={rotating}>
+            {rotating ? 'Rotating…' : '↻ Rotate 90°'}
+          </button>
+          <button class="btn btn-ghost btn-sm rotate-btn" onclick={setCover}>
+            ◉ Set as album cover
+          </button>
+        {/if}
       </div>
 
       <!-- Share links (owner only) -->
@@ -139,6 +245,7 @@
             <button class="btn btn-ghost btn-sm" onclick={createShareLink}>+ Create</button>
           </div>
           <p class="share-hint meta">Anyone with a link can view and download this photo.</p>
+          {#if shareErr}<p class="share-err">{shareErr}</p>{/if}
 
           {#if d.shareLinks.length}
             <ul class="share-links-list">
@@ -213,6 +320,32 @@
     .detail-layout { grid-template-columns: 1fr; }
   }
 
+  .photo-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .photo-nav .photo-frame { flex: 1; min-width: 0; }
+
+  .nav-arrow {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 50%;
+    background: var(--color-surface-container);
+    border: 1px solid var(--color-border);
+    color: var(--color-on-surface);
+    font-size: 1.5rem;
+    line-height: 1;
+    text-decoration: none;
+    transition: background 0.15s;
+  }
+  .nav-arrow:hover { background: var(--color-surface-container-high); }
+  .nav-arrow.disabled { visibility: hidden; pointer-events: none; }
+
   .photo-frame {
     border-radius: var(--radius-lg);
     overflow: hidden;
@@ -255,8 +388,32 @@
   .photo-title { font-size: 1.25rem; margin-bottom: 0.375rem; }
   .photo-desc { font-size: 0.9375rem; margin-bottom: 0; }
 
+  .desc-view {
+    cursor: text;
+    border-radius: var(--radius);
+    padding: 0.25rem 0.375rem;
+    margin: 0 -0.375rem;
+    transition: background 0.12s;
+  }
+  .desc-view:hover { background: var(--color-surface-container-low); }
+  .desc-placeholder { font-size: 0.9375rem; color: var(--color-outline); font-style: italic; margin: 0; }
+  .desc-editor {
+    width: 100%;
+    border: 1.5px solid var(--color-primary);
+    border-radius: var(--radius);
+    padding: 0.5rem 0.625rem;
+    font-family: var(--font-body);
+    font-size: 0.9375rem;
+    resize: vertical;
+    outline: none;
+    color: var(--color-on-surface);
+    margin-top: 0.25rem;
+  }
+  .desc-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+
   .like-row { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.75rem; }
   .download-btn { margin-top: 0.75rem; display: inline-flex; }
+  .rotate-btn { margin-top: 0.5rem; display: inline-flex; }
 
   .section-label {
     font-size: 0.6875rem;
@@ -308,6 +465,7 @@
   .share-hint { margin: 0 0 0.75rem; }
   .share-links-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem; }
   .share-link-item { display: flex; align-items: center; gap: 0.5rem; }
+  .share-err { font-size: 0.8125rem; color: var(--color-error); margin: 0.25rem 0 0; }
   .link-url {
     flex: 1;
     border: 1.5px solid var(--color-border);

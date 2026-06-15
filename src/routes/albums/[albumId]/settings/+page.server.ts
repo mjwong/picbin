@@ -13,7 +13,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
   if (!album) error(403, 'Album not found');
 
-  const [{ data: shares }, { data: links }] = await Promise.all([
+  const [{ data: shares }, { data: links }, { data: tags }] = await Promise.all([
     locals.supabase
       .from('album_shares')
       .select('user_id, profiles!user_id(username, display_name)')
@@ -22,11 +22,17 @@ export const load: PageServerLoad = async ({ params, locals }) => {
       .from('album_share_links')
       .select('id, token, expires_at')
       .eq('album_id', params.albumId),
+    locals.supabase
+      .from('album_tags')
+      .select('tag')
+      .eq('album_id', params.albumId)
+      .order('tag'),
   ]);
 
   return {
     album,
     shares: shares ?? [],
     links: links ?? [],
+    tags: (tags ?? []).map((t: any) => t.tag),
   };
 };

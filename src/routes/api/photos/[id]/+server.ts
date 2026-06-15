@@ -1,4 +1,7 @@
 import { json, error } from '@sveltejs/kit';
+import sharp from 'sharp';
+import { adminSupabase } from '$lib/server/admin';
+import { processImage } from '$lib/server/image';
 import type { RequestHandler } from './$types';
 
 export const PATCH: RequestHandler = async ({ params, request, locals }) => {
@@ -9,7 +12,56 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
     description?: string;
     addTag?: string;
     removeTag?: string;
+    rotate?: number;
   };
+
+  // Rotate image bytes server-side
+  if (body.rotate) {
+    const { data: photo } = await adminSupabase
+      .from('photos')
+      .select('original_path, thumb_800_path, thumb_300_path, owner_id')
+      .eq('id', params.id)
+      .single();
+
+    if (!photo) error(404, 'Photo not found');
+    if (photo.owner_id !== locals.user.id) error(403, 'Forbidden');
+
+    const { data: blob, error: dlErr } = await adminSupabase.storage
+      .from('photos')
+      .download(photo.original_path);
+    if (dlErr || !blob) error(500, 'Failed to download original');
+
+    const originalBuffer = Buffer.from(await blob.arrayBuffer());
+    const rotatedBuffer = await sharp(originalBuffer)
+      .rotate()
+      .rotate(body.rotate)
+      .jpeg({ quality: 95 })
+      .toBuffer();
+
+    const { thumb800, thumb300 } = await processImage(rotatedBuffer);
+
+    // New thumbnail paths to bust CDN cache (public bucket ignores query params)
+    const dir = photo.thumb_800_path.split('/').slice(0, -1).join('/');
+    const ts = Date.now();
+    const new800 = `${dir}/800_${ts}.jpg`;
+    const new300 = `${dir}/300_${ts}.jpg`;
+
+    await Promise.all([
+      adminSupabase.storage.from('photos').upload(photo.original_path, rotatedBuffer, {
+        upsert: true, contentType: 'image/jpeg',
+      }),
+      adminSupabase.storage.from('thumbnails').upload(new800, thumb800, { contentType: 'image/jpeg' }),
+      adminSupabase.storage.from('thumbnails').upload(new300, thumb300, { contentType: 'image/jpeg' }),
+    ]);
+
+    // Update DB with new thumbnail paths
+    await adminSupabase.from('photos').update({ thumb_800_path: new800, thumb_300_path: new300 }).eq('id', params.id);
+
+    // Delete old thumbnail files (best-effort)
+    adminSupabase.storage.from('thumbnails').remove([photo.thumb_800_path, photo.thumb_300_path]);
+
+    return new Response(null, { status: 204 });
+  }
 
   // Update photo fields
   if (body.title !== undefined || body.description !== undefined) {

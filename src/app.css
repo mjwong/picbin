@@ -229,7 +229,7 @@ a:hover { text-decoration: underline; }
   background: #fff;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  padding: 1rem 1.25rem;
+  overflow: hidden;
   transition: border-color 0.15s, transform 0.15s;
   color: var(--color-on-surface);
   text-decoration: none;

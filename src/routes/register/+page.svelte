@@ -16,8 +16,11 @@
     {/if}
 
     {#if form?.success}
-      <div class="alert alert-success">
-        Check your email to confirm your account.
+      <div class="verify-box">
+        <div class="verify-icon">✉</div>
+        <h2 class="verify-title">Check your email</h2>
+        <p class="verify-msg">We sent a confirmation link to your email address. Click it to activate your account, then <a href="/login">log in</a>.</p>
+        <p class="verify-hint">Didn't get it? Check your spam folder.</p>
       </div>
     {:else}
       <form method="POST" action="?/register" use:enhance>
@@ -53,4 +56,10 @@
   .auth-subtitle { margin-bottom: 1.75rem; font-size: 0.9375rem; }
   .btn-full { width: 100%; justify-content: center; }
   .auth-footer { text-align: center; font-size: 0.875rem; margin: 1rem 0 0; }
+
+  .verify-box { text-align: center; padding: 1rem 0; }
+  .verify-icon { font-size: 3rem; line-height: 1; margin-bottom: 1rem; }
+  .verify-title { font-size: 1.375rem; margin-bottom: 0.5rem; }
+  .verify-msg { font-size: 0.9375rem; color: var(--color-on-surface-variant); margin-bottom: 0.5rem; }
+  .verify-hint { font-size: 0.8125rem; color: var(--color-outline); }
 </style>

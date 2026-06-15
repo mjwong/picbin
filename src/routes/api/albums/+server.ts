@@ -20,6 +20,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     .select()
     .single();
 
-  if (dbErr) error(500, dbErr.message);
+  if (dbErr) {
+    if (dbErr.code === '23503') error(400, 'Profile not found — please log out and log back in');
+    error(500, dbErr.message);
+  }
   return json(data, { status: 201 });
 };

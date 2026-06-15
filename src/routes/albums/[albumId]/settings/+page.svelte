@@ -10,6 +10,7 @@
   let visibility = $state<'public' | 'restricted'>('public');
   let grantUsername = $state('');
   let errorMsg = $state('');
+  let newTag = $state('');
 
   $effect(() => {
     title = d.album.title;
@@ -73,6 +74,27 @@
 
   function shareUrl(token: string) {
     return `${window.location.origin}${albumUrl}?token=${token}`;
+  }
+
+  async function addTag() {
+    const t = newTag.trim().toLowerCase();
+    if (!t) return;
+    await fetch(`/api/albums/${d.album.id}/tags`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tag: t }),
+    });
+    newTag = '';
+    invalidateAll();
+  }
+
+  async function removeTag(tag: string) {
+    await fetch(`/api/albums/${d.album.id}/tags`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tag }),
+    });
+    invalidateAll();
   }
 </script>
 
@@ -165,6 +187,30 @@
     {/if}
   </section>
 
+  <!-- Tags -->
+  <section class="settings-section card">
+    <h2 class="section-title">Tags</h2>
+    <p class="empty-hint" style="margin-bottom:0.75rem">Tags help you filter albums in your library.</p>
+    <div class="tags-row">
+      {#each d.tags as tag}
+        <span class="chip">
+          {tag}
+          <button class="chip-btn" onclick={() => removeTag(tag)} aria-label="Remove">×</button>
+        </span>
+      {/each}
+    </div>
+    <div class="tag-add-row">
+      <input
+        class="tag-input-field"
+        type="text"
+        bind:value={newTag}
+        placeholder="Add tag…"
+        onkeydown={(e) => e.key === 'Enter' && addTag()}
+      />
+      <button class="btn btn-ghost btn-sm" onclick={addTag} disabled={!newTag.trim()}>Add</button>
+    </div>
+  </section>
+
   <!-- Danger Zone -->
   <section class="settings-section danger-zone card">
     <h2 class="section-title danger-title">Danger Zone</h2>
@@ -229,6 +275,21 @@
     outline: none;
   }
   .link-meta { display: flex; align-items: center; justify-content: space-between; }
+
+  .tags-row { display: flex; flex-wrap: wrap; gap: 0.375rem; margin-bottom: 0.75rem; min-height: 1.5rem; }
+  .tag-add-row { display: flex; gap: 0.5rem; align-items: center; }
+  .tag-input-field {
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 0.375rem 0.625rem;
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    outline: none;
+    width: 160px;
+    color: var(--color-on-surface);
+    background: #fff;
+  }
+  .tag-input-field:focus { border-color: var(--color-primary); }
 
   .danger-zone { border-color: #ffdad6; }
   .danger-title { color: var(--color-error); }

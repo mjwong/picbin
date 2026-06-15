@@ -1,7 +1,7 @@
 create table public.photo_share_links (
   id         uuid primary key default gen_random_uuid(),
   photo_id   uuid not null references public.photos(id) on delete cascade,
-  token      text not null unique default encode(gen_random_bytes(24), 'base64url'),
+  token      text not null unique default translate(encode(gen_random_bytes(18), 'base64'), '+/=', '-_'),
   created_at timestamptz default now() not null
 );
 

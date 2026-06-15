@@ -14,14 +14,26 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
   if (!allowed) error(403, 'Access denied');
 
   // Use admin client: canViewAlbum already verified access; RLS blocks anon on restricted albums.
-  const { data: photo } = await adminSupabase
-    .from('photos')
-    .select('*')
-    .eq('id', params.photoId)
-    .eq('album_id', params.albumId)
-    .single();
+  const [{ data: photo }, { data: albumPhotos }] = await Promise.all([
+    adminSupabase
+      .from('photos')
+      .select('*')
+      .eq('id', params.photoId)
+      .eq('album_id', params.albumId)
+      .single(),
+    adminSupabase
+      .from('photos')
+      .select('id')
+      .eq('album_id', params.albumId)
+      .order('created_at', { ascending: true }),
+  ]);
 
   if (!photo) error(404, 'Photo not found');
+
+  const photoIds = (albumPhotos ?? []).map((p: any) => p.id);
+  const idx = photoIds.indexOf(params.photoId);
+  const prevId = idx > 0 ? photoIds[idx - 1] : null;
+  const nextId = idx < photoIds.length - 1 ? photoIds[idx + 1] : null;
 
   const [{ data: comments }, { data: likes }, { data: tags }, { data: shareLinks }] = await Promise.all([
     adminSupabase
@@ -64,5 +76,7 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
     shareLinks: shareLinks ?? [],
     isOwner,
     token,
+    prevId,
+    nextId,
   };
 };

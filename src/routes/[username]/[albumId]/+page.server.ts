@@ -22,13 +22,29 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 
   if (!album) error(404, 'Album not found');
 
-  const { data: photos } = await adminSupabase
+  const photoList = await adminSupabase
     .from('photos')
-    .select('id, title, thumb_300_path, created_at')
+    .select('id, title, thumb_300_path, thumb_800_path, created_at')
     .eq('album_id', params.albumId)
     .order('created_at', { ascending: false });
 
+  const photos = photoList.data ?? [];
+  const photoIds = photos.map((p: any) => p.id);
+
+  const { data: tagRows } = photoIds.length
+    ? await adminSupabase.from('photo_tags').select('photo_id, tag').in('photo_id', photoIds)
+    : { data: [] };
+
+  const tagMap: Record<string, string[]> = {};
+  for (const row of tagRows ?? []) {
+    const r = row as any;
+    tagMap[r.photo_id] = [...(tagMap[r.photo_id] ?? []), r.tag];
+  }
+
+  const photosWithTags = photos.map((p: any) => ({ ...p, tags: tagMap[p.id] ?? [] }));
+  const allTags = [...new Set((tagRows ?? []).map((r: any) => r.tag))].sort();
+
   const isOwner = locals.user?.id === album.owner_id;
 
-  return { album, photos: photos ?? [], isOwner, token };
+  return { album, photos: photosWithTags, isOwner, token, allTags };
 };

@@ -1,10 +1,11 @@
 import { json, error } from '@sveltejs/kit';
+import { adminSupabase } from '$lib/server/admin';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ params, locals }) => {
   if (!locals.user) error(401, 'Unauthorized');
 
-  const { data: photo } = await locals.supabase
+  const { data: photo } = await adminSupabase
     .from('photos')
     .select('owner_id')
     .eq('id', params.id)
