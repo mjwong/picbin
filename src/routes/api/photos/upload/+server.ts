@@ -38,13 +38,18 @@ export const POST: RequestHandler = async ({ request, locals }) => {
   const ext = file.type === 'image/png' ? 'png' : file.type === 'image/gif' ? 'gif' : file.type === 'image/webp' ? 'webp' : 'jpg';
   const originalPath = `${uid}/${photoId}/original.${ext}`;
 
-  const { error: uploadErr } = await admin.storage
-    .from('photos')
-    .upload(originalPath, buffer, { contentType: file.type });
+  const [r1, r2] = await Promise.all([
+    admin.storage.from('photos').upload(originalPath, buffer, { contentType: file.type }),
+    admin.storage.from('thumbnails').upload(originalPath, buffer, { contentType: file.type }),
+  ]);
 
-  if (uploadErr) {
-    console.error('Storage upload error:', uploadErr);
-    error(500, `Storage upload failed: ${uploadErr.message}`);
+  if (r1.error || r2.error) {
+    console.error('Storage upload error:', { r1: r1.error, r2: r2.error });
+    await Promise.allSettled([
+      admin.storage.from('photos').remove([originalPath]),
+      admin.storage.from('thumbnails').remove([originalPath]),
+    ]);
+    error(500, `Storage upload failed: ${r1.error?.message || r2.error?.message}`);
   }
 
   const { data: photo, error: dbErr } = await locals.supabase
@@ -65,7 +70,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
   if (dbErr) {
     console.error('DB insert error:', dbErr);
-    await admin.storage.from('photos').remove([originalPath]);
+    await Promise.allSettled([
+      admin.storage.from('photos').remove([originalPath]),
+      admin.storage.from('thumbnails').remove([originalPath]),
+    ]);
     error(500, 'Failed to save photo metadata');
   }
 
