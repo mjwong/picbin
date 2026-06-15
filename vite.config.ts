@@ -5,6 +5,9 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   return {
     plugins: [sveltekit()],
+    ssr: {
+      external: ['sharp'],
+    },
     test: {
       include: ['tests/unit/**/*.test.ts', 'tests/integration/**/*.test.ts'],
       environment: 'node',
