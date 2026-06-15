@@ -36,7 +36,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
   let processed;
   try {
     processed = await processImage(buffer);
-  } catch {
+  } catch (e) {
+    console.error('processImage failed:', e);
     error(422, 'Could not process image — ensure it is a valid JPEG, PNG, WebP, or GIF');
   }
 
@@ -72,11 +73,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
   ]);
 
   if (u1.error || u2.error || u3.error) {
+    console.error('Storage upload errors:', { u1: u1.error, u2: u2.error, u3: u3.error });
     await Promise.allSettled([
       admin.storage.from('photos').remove([originalPath]),
       admin.storage.from('thumbnails').remove([path800, path300]),
     ]);
-    error(500, 'Storage upload failed');
+    error(500, `Storage upload failed: ${u1.error?.message || u2.error?.message || u3.error?.message}`);
   }
 
   const { data: photo, error: dbErr } = await locals.supabase
