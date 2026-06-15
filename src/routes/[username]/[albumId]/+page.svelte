@@ -6,7 +6,7 @@
   let { data }: { data: PageData } = $props();
   let d = $derived(data as any);
   let album = $derived(d.album);
-  let photos = $derived(d.photos as any[]);
+  let photos = $state(d.photos as any[]);
   let isOwner = $derived(d.isOwner);
   let token = $derived(d.token);
   let allTags = $derived(d.allTags as string[]);
@@ -72,6 +72,18 @@
     };
   });
 
+  let deletingId = $state<string | null>(null);
+
+  async function deletePhoto(photoId: string, e: Event) {
+    e.preventDefault();
+    if (!confirm('Delete this photo?')) return;
+    deletingId = photoId;
+    await fetch(`/api/photos/${photoId}`, { method: 'DELETE' });
+    deletingId = null;
+    // Remove from local list
+    photos = photos.filter((p: any) => p.id !== photoId);
+  }
+
   function onKeydown(e: KeyboardEvent) {
     if (!slideshowOpen) return;
     if (e.key === 'ArrowLeft') prev();
@@ -125,19 +137,29 @@
   {:else}
     <div class="photo-grid">
       {#each filteredPhotos as photo}
-        <a href="/{album.profiles.username}/{album.id}/{photo.id}{token ? `?token=${token}` : ''}" class="photo-tile">
-          <img src={thumbUrl(photo.thumb_300_path)} alt={photo.title ?? ''} />
-          <div class="photo-tile-footer">
-            {#if photo.title}<span class="photo-tile-label">{photo.title}</span>{/if}
-            {#if photo.tags?.length}
-              <div class="photo-tile-tags">
-                {#each photo.tags as tag}
-                  <span class="photo-tag-chip" onclick={(e) => { e.preventDefault(); tagFilter = tag; }}>{tag}</span>
-                {/each}
-              </div>
-            {/if}
-          </div>
-        </a>
+        <div class="photo-tile-wrap">
+          <a href="/{album.profiles.username}/{album.id}/{photo.id}{token ? `?token=${token}` : ''}" class="photo-tile">
+            <img src={thumbUrl(photo.thumb_300_path)} alt={photo.title ?? ''} />
+            <div class="photo-tile-footer">
+              {#if photo.title}<span class="photo-tile-label">{photo.title}</span>{/if}
+              {#if photo.tags?.length}
+                <div class="photo-tile-tags">
+                  {#each photo.tags as tag}
+                    <span class="photo-tag-chip" onclick={(e) => { e.preventDefault(); tagFilter = tag; }}>{tag}</span>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+          </a>
+          {#if isOwner}
+            <button
+              class="photo-delete-btn"
+              onclick={(e) => deletePhoto(photo.id, e)}
+              disabled={deletingId === photo.id}
+              aria-label="Delete photo"
+            >✕</button>
+          {/if}
+        </div>
       {/each}
     </div>
   {/if}
@@ -217,6 +239,17 @@
   .back-link:hover { color: var(--color-primary); }
   .album-desc { color: var(--color-on-surface-variant); font-size: 0.9375rem; margin: 0.375rem 0 0; }
   .album-actions { display: flex; gap: 0.5rem; flex-shrink: 0; flex-wrap: wrap; }
+
+  .photo-tile-wrap { position: relative; }
+  .photo-delete-btn {
+    position: absolute; top: 0.4rem; right: 0.4rem;
+    background: rgba(0,0,0,0.55); color: #fff; border: none;
+    border-radius: 50%; width: 1.6rem; height: 1.6rem;
+    font-size: 0.75rem; cursor: pointer; opacity: 0;
+    transition: opacity 0.15s; line-height: 1;
+  }
+  .photo-tile-wrap:hover .photo-delete-btn { opacity: 1; }
+  .photo-delete-btn:hover { background: rgba(200,0,0,0.8); }
 
   .photo-tile {
     all: unset;
